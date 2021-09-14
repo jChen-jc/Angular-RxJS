@@ -1,12 +1,13 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 
-import { Observable, throwError } from 'rxjs';
-import { catchError, tap } from 'rxjs/operators';
+import { combineLatest, Observable, throwError } from 'rxjs';
+import { catchError, tap, map } from 'rxjs/operators';
 
 import { Product } from './product';
 import { Supplier } from '../suppliers/supplier';
 import { SupplierService } from '../suppliers/supplier.service';
+import { ProductCategoryService } from '../product-categories/product-category.service';
 
 @Injectable({
   providedIn: 'root'
@@ -15,16 +16,41 @@ export class ProductService {
   private productsUrl = 'api/products';
   private suppliersUrl = this.supplierService.suppliersUrl;
 
-  constructor(private http: HttpClient,
-              private supplierService: SupplierService) { }
+  product$ = this.http.get<Product[]>(this.productsUrl)
+  .pipe(
+    // map(products => products.map(item => ({
+    //   ...item,
+    //   price: item.price * 1.5,
+    //   searchKey: [item.productName],
+    // }) as Product) // force the type
+    // ),
+    tap(data => console.log('Products: ', JSON.stringify(data))),
+    catchError(this.handleError)
+  );
 
-  getProducts(): Observable<Product[]> {
-    return this.http.get<Product[]>(this.productsUrl)
-      .pipe(
-        tap(data => console.log('Products: ', JSON.stringify(data))),
-        catchError(this.handleError)
-      );
-  }
+  productWithCat$ = combineLatest([
+    this.product$,
+    this.catService.productCategories$
+  ]).pipe(
+    map(([products, cats]) => products.map(product => ({
+      ...product,
+      price: product.price * 1.5,
+      category: cats.find(cat => product.categoryId === cat.id)?.name,
+      searchKey: [product.productName]
+    }) as Product ))
+  )
+
+  constructor(private http: HttpClient,
+              private supplierService: SupplierService,
+              private catService: ProductCategoryService) { }
+
+  // getProducts(): Observable<Product[]> {
+  //   return this.http.get<Product[]>(this.productsUrl)
+  //     .pipe(
+  //       tap(data => console.log('Products: ', JSON.stringify(data))),
+  //       catchError(this.handleError)
+  //     );
+  // }
 
   private fakeProduct(): Product {
     return {
