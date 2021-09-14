@@ -1,8 +1,8 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 
-import { BehaviorSubject, combineLatest, Observable, Subject, throwError } from 'rxjs';
-import { catchError, tap, map } from 'rxjs/operators';
+import { BehaviorSubject, combineLatest, from, merge, Observable, pipe, Subject, throwError } from 'rxjs';
+import { catchError, tap, map, scan, share, shareReplay, mergeMap, toArray, filter, switchMap } from 'rxjs/operators';
 
 import { Product } from './product';
 import { Supplier } from '../suppliers/supplier';
@@ -37,7 +37,8 @@ export class ProductService {
       price: product.price * 1.5,
       category: cats.find(cat => product.categoryId === cat.id)?.name,
       searchKey: [product.productName]
-    }) as Product ))
+    }) as Product )),
+    shareReplay(1)
   )
 
   private selectedProductSubject = new BehaviorSubject<number>(0);
@@ -49,8 +50,44 @@ export class ProductService {
   ])
     .pipe(
       map(([products, selectedId]) => products.find(product => product.id === selectedId)),
-      tap(product => console.log("selected", product))
+      tap(product => console.log("selected", product)),
+      shareReplay(1)
     );
+
+  private newProductSubject = new Subject<Product>();
+  newProductAction$ = this.newProductSubject.asObservable();
+
+  productsWithAdd$ = merge(
+    this.productWithCat$,
+    this.newProductAction$
+  ).pipe(
+    scan((acc: Product[], value: Product) => {
+      console.log("...ac", acc, value)
+      return [...acc, value]
+    })
+  )
+
+  // combine suppliers and product
+  // get it all
+  // selectedProductWithSuppliers$ = combineLatest([
+  //   this.selectedProduct$,
+  //   this.supplierService.suppliers$
+  // ]).pipe(
+  //   map(([selectedProduct, suppliers]) => suppliers.filter(sup => selectedProduct.supplierIds.includes(sup.id)))
+  // )
+
+  // just in time
+  selectedProductWithSuppliers$ = this.selectedProduct$
+  .pipe(
+    filter(selectedProduct => Boolean(selectedProduct)), // in case of none of the product is selected
+    switchMap(selectedProduct => // make sure cancel the pervious action from user, get the last one
+      from(selectedProduct.supplierIds) //<-- get all ids
+      .pipe(
+        mergeMap(supplierId => this.http.get<Supplier>(`${this.suppliersUrl}/${supplierId}`)), // fetch each id
+        toArray(),
+      )
+    )
+  )
 
   constructor(private http: HttpClient,
               private supplierService: SupplierService,
@@ -58,6 +95,19 @@ export class ProductService {
 
   selectProduct(selectedId: number):void {
     this.selectedProductSubject.next(selectedId);
+  }
+
+  addProduct(newProduct?: Product) {
+    newProduct = newProduct || {
+      id: 44,
+      productName: 'Crunchy fava beans',
+      productCode: 'YTU-9183',
+      description: 'Red pepper & Chilli',
+      price: 5.45,
+      categoryId: 1,
+      quantityInStock: 12
+    } as Product;
+    this.newProductSubject.next(newProduct)
   }
 
   // getProducts(): Observable<Product[]> {

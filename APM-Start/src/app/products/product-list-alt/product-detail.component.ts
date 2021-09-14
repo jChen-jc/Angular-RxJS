@@ -1,8 +1,9 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
-import { EMPTY } from 'rxjs';
-import { catchError } from 'rxjs/operators';
+import { combineLatest, EMPTY } from 'rxjs';
+import { catchError, map } from 'rxjs/operators';
 
 import { ProductService } from '../product.service';
+import { Product } from '../product';
 
 @Component({
   selector: 'pm-product-detail',
@@ -10,7 +11,6 @@ import { ProductService } from '../product.service';
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ProductDetailComponent {
-  pageTitle = 'Product Detail';
   errorMessage = '';
   product$ = this.productService.selectedProduct$
   .pipe(
@@ -18,7 +18,27 @@ export class ProductDetailComponent {
       this.errorMessage = err;
       return EMPTY;
     })
-  ) 
+  )
+
+  productSuppliers$ = this.productService.selectedProductWithSuppliers$
+  .pipe(
+    catchError(err => {
+      this.errorMessage = err;
+      return EMPTY;
+    })
+  )
+
+  pageTitle$ = this.product$
+    .pipe(map((p:Product) => p ? `Product Detail - ${p.productName}` : null));
+
+  // combine stream
+  vm$ = combineLatest([
+    this.product$,
+    this.productSuppliers$,
+    this.pageTitle$
+  ]).pipe(
+    map(([product, productSuppliers, pageTitle]) => ({ product, productSuppliers, pageTitle }))
+  )
 
   constructor(private productService: ProductService) { }
 
