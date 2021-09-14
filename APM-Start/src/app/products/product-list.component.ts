@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, OnInit } from '@angular/core';
 
-import { EMPTY, Observable, of, Subscription, throwError } from 'rxjs';
-import { catchError, tap, map } from 'rxjs/operators';
+import { BehaviorSubject, combineLatest, EMPTY, Observable, of, Subject, Subscription, throwError } from 'rxjs';
+import { catchError, tap, map, startWith } from 'rxjs/operators';
 import { ProductCategoryService } from '../product-categories/product-category.service';
 
 import { Product } from './product';
@@ -15,19 +15,24 @@ import { ProductService } from './product.service';
 export class ProductListComponent {
   pageTitle = 'Product List';
   errorMessage = '';
-  categories;
-  selectedCatId = 1;
-
-  // products: Product[] = [];
-  products$: Observable<Product[]> = this.productService.productWithCat$;
   sub: Subscription;
 
-  productFilter$ = this.productService.productWithCat$
-  .pipe(
-    map(products =>
+  private selectedCatSubject = new BehaviorSubject<number>(0);
+  selectedCatAction$ = this.selectedCatSubject.asObservable();
+
+  products$ = combineLatest([
+    this.productService.productWithCat$,
+    // this.selectedCatAction$.pipe(startWith(0))
+    this.selectedCatAction$
+  ]).pipe(
+    map(([products, selectedCatId]) =>
       products.filter(product => {
-      return this.selectedCatId ? this.selectedCatId === product.categoryId : true;
-    }))
+      return selectedCatId ? selectedCatId === product.categoryId : true;
+    })),
+    catchError(err => {
+      this.errorMessage = err;
+      return EMPTY;
+    })
   )
 
   categories$ = this.productCatService.productCategories$.pipe(
@@ -39,33 +44,11 @@ export class ProductListComponent {
 
   constructor(private productService: ProductService, private productCatService: ProductCategoryService) { }
 
-  // ngOnInit(): void {
-  //   this.products$ = this.productService.getProducts().pipe(
-  //     catchError(err => {
-  //       console.log("error", err);
-  //       this.errorMessage = err;
-  //       return EMPTY;
-  //       // return throwError(err);
-  //       //return of(null)
-  //     })
-  //   );
-  //   // this.sub = this.productService.getProducts()
-  //   //   .subscribe(
-  //   //     products => this.products = products,
-  //   //     error => this.errorMessage = error
-  //   //   );
-  // }
-
-  // ngOnDestroy(): void {
-  //   this.sub.unsubscribe();
-  // }
-
   onAdd(): void {
     console.log('Not yet implemented');
   }
 
   onSelected(categoryId: string): void {
-    console.log('Not yet implemented');
-    this.selectedCatId = +categoryId;
+    this.selectedCatSubject.next(+categoryId);
   }
 }

@@ -1,14 +1,13 @@
 <div class="card"
-     *ngIf="product">
+     *ngIf="product$ | async as product">
   <div class="card-header">
     {{pageTitle}}
   </div>
 
   <div class="card-body">
-
     <div class="row">
       <div class="col-md-2">Name:</div>
-      <div class="col-md-6">{{product.productName}}</div>
+      <div class="col-md-6">{{product?.productName}}</div>
     </div>
     <div class="row">
       <div class="col-md-2">Code:</div>
